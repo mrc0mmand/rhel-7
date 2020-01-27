@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 TEST_DESCRIPTION="test that ExecStopPost= is always run"
 
 . $TEST_BASE_DIR/test-functions
@@ -43,8 +42,7 @@ test_setup() {
         eval $(udevadm info --export --query=env --name=${LOOPDEV}p2)
 
         setup_basic_environment
-        inst_binary false
-        inst_binary true
+        dracut_install false true env touch
 
         # mask some services that we do not want to run in these tests
         ln -s /dev/null $initdir/etc/systemd/system/systemd-hwdb-update.service

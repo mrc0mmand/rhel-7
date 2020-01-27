@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-systemd-analyze log-level debug
+systemd-analyze set-log-level debug
 
 # Emulates systemd-run to overcome its limitations on RHEL-7, like nonexistent
 # support for --wait and only a handful of supported properties.
@@ -17,13 +17,17 @@ StandardOutput=tty
 StandardError=tty
 EOF
 
+    # The $OPTIND variable used by geopts is NOT reset before each getopts invocation
+    # in the same shell session, so let's do it manually to always get relevant results
+    OPTIND=1
+
     while getopts p: opt ; do
         case $opt in
             p) echo "$OPTARG" >> $unitfile ;;
         esac
     done
     shift $((OPTIND - 1))
-    echo "ExecStart=/usr/bin/env $*" >> $unitfile
+    echo "ExecStart=/usr/bin/env $@" >> $unitfile
     systemctl daemon-reload
 
     systemctl start $unit
@@ -39,12 +43,6 @@ test -f /run/simple1
 ! systemd-run-wait simple2.service -p Type=simple -p ExecStopPost='/bin/touch /run/simple2' false
 test -f /run/simple2
 
-systemd-run-wait exec1.service -p Type=exec -p ExecStopPost='/bin/touch /run/exec1' sleep 1
-test -f /run/exec1
-
-! systemd-run-wait exec2.service -p Type=exec -p ExecStopPost='/bin/touch /run/exec2' sh -c 'sleep 1; false'
-test -f /run/exec2
-
 cat > /tmp/forking1.sh <<EOF
 #!/bin/bash
 
@@ -58,7 +56,8 @@ systemd-notify MAINPID=\$MAINPID
 EOF
 chmod +x /tmp/forking1.sh
 
-systemd-run-wait forking1.service -p Type=forking -p NotifyAccess=exec -p ExecStopPost='/bin/touch /run/forking1' /tmp/forking1.sh
+# RHEL 7 doesn't support NotifyAccess=exec
+systemd-run-wait forking1.service -p Type=forking -p NotifyAccess=main -p ExecStopPost='/bin/touch /run/forking1' /tmp/forking1.sh
 test -f /run/forking1
 
 cat > /tmp/forking2.sh <<EOF
@@ -74,7 +73,8 @@ systemd-notify MAINPID=\$MAINPID
 EOF
 chmod +x /tmp/forking2.sh
 
-! systemd-run-wait forking2.service -p Type=forking -p NotifyAccess=exec -p ExecStopPost='/bin/touch /run/forking2' /tmp/forking2.sh
+# RHEL 7 doesn't support NotifyAccess=exec
+! systemd-run-wait forking2.service -p Type=forking -p NotifyAccess=main -p ExecStopPost='/bin/touch /run/forking2' /tmp/forking2.sh
 test -f /run/forking2
 
 systemd-run-wait oneshot1.service -p Type=oneshot -p ExecStopPost='/bin/touch /run/oneshot1' true
